@@ -1,14 +1,49 @@
 import datetime
 import json
 import logging
+import logging.config
 import os
 import subprocess
+import time
 from prometheus_client import make_wsgi_app, Gauge
 from flask import Flask
 from waitress import serve
 
-format_string = '%(levelname)s: %(asctime)s: %(message)s''
-logging.basicConfig(filename='speedtest.log', encoding='utf-8', level=logging.DEBUG, format=format_string)
+class UTCFormatter(logging.Formatter):
+    converter = time.gmtime
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'utc': {
+            '()': UTCFormatter,
+            'format': '%(levelname)s: %(asctime)s: %(message)s',
+        },
+    },
+    'handlers': {
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'utc',
+            'filename': 'speedtest.log',
+            'level': logging.DEBUG,
+        },
+        # 'console': {
+        #     'class': 'logging.StreamHandler',
+        #     'formatter': 'utc',
+        #     # 'filename': 'speedtest.log',
+        #     'level': logging.DEBUG,
+        # },
+    },
+    'root': {
+        'handlers': [
+            'file',
+            # 'console',
+        ],
+    }
+}
+
+logging.config.dictConfig(LOGGING)
 
 app = Flask("Speedtest-Exporter")  # Create flask app
 
@@ -89,10 +124,10 @@ def updateResults():
     upload_speed.set(r_upload)
     up.set(r_status)
     current_dt = datetime.datetime.now()
-    logging.info(
-          " Server=" + str(r_server)
-          + " Jitter=" + str(r_jitter) + " ms"
-          + " Ping=" + str(r_ping) + " ms"
+    logging.warning(
+          "Server=" + str(r_server)
+          + " Jitter=" + str(r_jitter) + "ms"
+          + " Ping=" + str(r_ping) + "ms"
           + " Download=" + bits_to_megabits(r_download)
           + " Upload=" + bits_to_megabits(r_upload)
           + " Url=" + r_url
@@ -107,6 +142,11 @@ def mainPage():
 
 
 if __name__ == '__main__':
+    logging.config.dictConfig(LOGGING)
+    logging.warning('Starting up')
+    logging.info('Starting up')
+    logging.debug('Starting up')
+    
     PORT = os.getenv('SPEEDTEST_PORT', 9798)
     print("Starting Speedtest-Exporter on http://localhost:" + str(PORT))
     serve(app, host='0.0.0.0', port=PORT)
